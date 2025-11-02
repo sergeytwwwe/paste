@@ -1,0 +1,98 @@
+-- Минималистичный ESP (только картинки)
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- Framework для рисования
+local Framework = {}; Framework.__index = Framework
+function Framework:Draw(Object, Props)
+    local Obj = Drawing.new(Object)
+    for k,v in pairs(Props) do Obj[k] = v end
+    return Obj
+end
+
+-- Проверяем и создаем папки
+if not isfolder("ESP") then makefolder("ESP") end
+if not isfolder("ESP/assets") then makefolder("ESP/assets") end
+
+-- Загружаем картинки
+local function ensure(name, url)
+    local path = "ESP/assets/"..name..".oh"
+    if not isfile(path) then
+        writefile(path, game:HttpGet(url))
+    end
+    return readfile(path)
+end
+
+local Images = {
+    Belka   = ensure("belka", "https://raw.githubusercontent.com/Lolik322/Assets/main/unnamed.jpg"),
+    Gus     = ensure("gus", "https://raw.githubusercontent.com/Lolik322/Assets/main/222782490996a9fdfef627fed2352c8d.jpg"),
+    Gorilla = ensure("gorilla", "https://raw.githubusercontent.com/tatar0071/IonHub/main/Assets/gorilla.png"),
+    Taxi    = ensure("taxi", "https://raw.githubusercontent.com/tatar0071/IonHub/main/Assets/taxi.png"),
+    Saul    = ensure("saul_goodman", "https://raw.githubusercontent.com/tatar0071/IonHub/main/Assets/saul_goodman.png"),
+    Peter   = ensure("peter_griffin", "https://raw.githubusercontent.com/tatar0071/IonHub/main/Assets/peter_griffin.png"),
+    Herbert = ensure("john_herbert", "https://raw.githubusercontent.com/tatar0071/IonHub/main/Assets/john_herbert.png"),
+    Fortnite= ensure("fortnite", "https://raw.githubusercontent.com/tatar0071/IonHub/main/Assets/fortnite.png"),
+}
+
+-- Основной ESP
+local ESP = {
+    Settings = {
+        Enabled = false,
+        Maximal_Distance = 1000,
+        Image = {Enabled = false, Image = "Belka", Raw = nil}
+    },
+    Objects = {}
+}
+ESP.__index = ESP
+
+function ESP:UpdateImages()
+    self.Settings.Image.Raw = Images[self.Settings.Image.Image]
+    for _, obj in pairs(self.Objects) do
+        obj.Components.Image.Data = self.Settings.Image.Raw
+    end
+end
+
+function ESP:Player(player)
+    if self.Objects[player] then
+        self.Objects[player].Components.Image:Remove()
+        self.Objects[player] = nil
+    end
+    local Components = {}
+    Components.Image = Framework:Draw("Image", {Visible = false, Data = self.Settings.Image.Raw})
+    self.Objects[player] = {Player = player, Components = Components}
+    return self.Objects[player]
+end
+
+-- Обновление ESP
+RunService.RenderStepped:Connect(function()
+    if not ESP.Settings.Enabled then
+        for _,obj in pairs(ESP.Objects) do
+            obj.Components.Image.Visible = false
+        end
+        return
+    end
+
+    for _, obj in pairs(ESP.Objects) do
+        local plr = obj.Player
+        local char = plr.Character
+        if not char or not char:FindFirstChild("Head") then
+            obj.Components.Image.Visible = false
+            continue
+        end
+
+        local head = char.Head
+        local pos, onScreen = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 2, 0))
+        if onScreen and (pos.Z / 3.57) < ESP.Settings.Maximal_Distance then
+            obj.Components.Image.Visible = true
+            obj.Components.Image.Position = Vector2.new(pos.X - 25, pos.Y - 25)
+            obj.Components.Image.Size = Vector2.new(50, 50)
+        else
+            obj.Components.Image.Visible = false
+        end
+    end
+end)
+
+return ESP, RunService.RenderStepped, Framework
